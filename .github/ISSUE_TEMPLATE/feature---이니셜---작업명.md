@@ -1,7 +1,7 @@
 ---
 name: feature / 이니셜 / 작업명
 about: 양식을 지켜주세요
-title: ''
+title: feature / 이니셜 / 작업명
 labels: ''
 assignees: ''
 

@@ -128,7 +128,7 @@ async def classify_image(file: UploadFile = File(...)):
     result_html = "<h2>업로드 이미지:</h2>"
     result_html += f'<img src="data:image/jpeg;base64,{base64.b64encode(img_bytes).decode()}"/>'
 
-    result_html += "<h2>마스크 썻나요:</h2>"
+    result_html += "<h2>마스크 썻나요~:</h2>"
     for result in obj_results:
         score_percentage = f"{result['score'] * 100:.6f} % 확률로 씀"  # 확률을 백분율로 변환하여 출력
         if result['label'] == 'with_mask':

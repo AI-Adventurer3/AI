@@ -43,7 +43,7 @@ async def create_upload_file(file: UploadFile):
 
         # Classification
         result = classifier(pil_img)  # Use the PIL image directly
-
+# 1
         return {"result": result}
     except Exception as e:
         return {"error": str(e)}

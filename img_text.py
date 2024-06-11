@@ -1,3 +1,4 @@
+# 포즈 텍스트 전환
 # 1 모듈 가져오기
 from transformers import pipeline
 from fastapi import FastAPI, UploadFile, File

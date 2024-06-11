@@ -59,6 +59,7 @@
 
 
 # 웹으로 성별구분 코드
+# 123123123
 import cv2
 from transformers import pipeline
 from PIL import Image

@@ -1,3 +1,4 @@
+# 웹캠 표정 실시간 인식
 import cv2
 from transformers import pipeline
 from PIL import Image

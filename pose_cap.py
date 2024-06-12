@@ -36,11 +36,13 @@ def main():
         result = generate_caption(frame)
         
         # 캡션 결과를 프레임에 표시
-        y_offset = 30
-        for res in result:
-            caption = res['generated_text']
-            cv2.putText(frame, caption, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
-            y_offset += 30
+        if result and len(result) > 0:
+            text = result[0]['generated_text']
+        else:
+            text = "No action detected"
+
+        # 프레임에 텍스트를 표시
+        cv2.putText(frame, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
         # 프레임을 화면에 표시
         cv2.imshow("Webcam Image Captioning", frame)

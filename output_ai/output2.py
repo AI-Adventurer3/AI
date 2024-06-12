@@ -37,7 +37,7 @@ summary = (
     f"{caption_result[0]['generated_text']}"
 )
 
-# OpenAI GPT 모델을 사용하여 요약 문장 자연스럽게 만들기기
+# OpenAI GPT 모델을 사용하여 요약 문장 자연스럽게 만들기기기
 response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
     messages=[

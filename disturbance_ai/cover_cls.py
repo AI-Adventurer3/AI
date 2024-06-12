@@ -19,7 +19,7 @@ def generate_classification(frame):
 
 def main():
     # 3 데이터 가져오기
-    # 웹캠에서 실시간으로 이미지를 가져옵니다.
+    # 웹캠에서 실시간으로 이미지를 가져옵니다..
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():

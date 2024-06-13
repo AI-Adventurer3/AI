@@ -141,7 +141,7 @@ async def process_images():
             threshold = 0.5 # 유사도 임계값 설정 (0.5는 예시 값이며 조정 가능)
 
             if sims > threshold:
-                result = f"{img_path}와 {ref_path}: 동일 인물 입니다."
+                result = f"{img_path}와 {ref_path}: 동일 인물 입니다.."
             else:
                 result = f"{img_path}와 {ref_path}: 다른 사람 입니다."
             results.append(result)

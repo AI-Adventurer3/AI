@@ -1,13 +1,11 @@
-from fastapi import FastAPI, File, UploadFile, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, File, UploadFile
 from transformers import pipeline
 import openai
 import re
 import io
 from PIL import Image
 
-# OpenAI API 키 설정정
+# OpenAI API 키 설정
 openai.api_key = ""
 
 # 모델 초기화
@@ -19,14 +17,8 @@ age_classifier = pipeline("image-classification", model="nateraw/vit-age-classif
 
 app = FastAPI()
 
-templates = Jinja2Templates(directory="templates")
-
-@app.get("/", response_class=HTMLResponse)
-async def get_form(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-@app.post("/analyze-image/", response_class=HTMLResponse)
-async def analyze_image(request: Request, file: UploadFile = File(...)):
+@app.post("/analyze-image/")
+async def analyze_image(file: UploadFile = File(...)):
     try:
         # 파일을 바이너리 데이터로 읽기
         byte_file = await file.read()
@@ -100,7 +92,7 @@ async def analyze_image(request: Request, file: UploadFile = File(...)):
         # 최종 요약 문장이 폭력적이거나 위험한지 확인
         is_dangerous = is_violent_or_dangerous(final_summary)
 
-        result = {
+        return {
             "face_status": face_status,
             "expressions": top_two_expressions,
             "caption": caption_result[0]['generated_text'],
@@ -108,11 +100,10 @@ async def analyze_image(request: Request, file: UploadFile = File(...)):
             "summary": final_summary,
             "is_dangerous": is_dangerous
         }
-
-        return templates.TemplateResponse("index.html", {"request": request, "result": result})
     except Exception as e:
+        # 예외 발생 시 에러 로그 출력
         print(f"Error: {str(e)}")
-        return templates.TemplateResponse("index.html", {"request": request, "result": {"error": str(e)}})
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

@@ -89,7 +89,7 @@ async def analyze_image(file: UploadFile = File(...)):
                     return True
             return False
 
-        # 최종 요약 문장이 폭력적이거나 위험한지 확인
+        # 최종 요약 문장이 폭력적이거나 위험한지 확인인
         is_dangerous = is_violent_or_dangerous(final_summary)
 
         return {

@@ -1,94 +1,115 @@
+# Step 1 모듈 가져오기
 import cv2
-from transformers import pipeline
-from PIL import Image
-import os
+import numpy as np
+import insightface
+from insightface.app import FaceAnalysis
+import threading
+import time
 
-# 세 개의 모델 설정
-emotion_classifier = pipeline("image-classification", model="trpakov/vit-face-expression")
-captioner = pipeline("image-to-text", model="nlpconnect/vit-gpt2-image-captioning", framework="pt")
-gender_classifier = pipeline("image-classification", model="dima806/man_woman_face_image_detection")
+# Step 2 추론기 만듬
+app = FaceAnalysis(providers=['CPUExecutionProvider'])
+app.prepare(ctx_id=0, det_size=(640, 640)) # prepare 얼굴분석기
 
-def detect_emotion(frame):
-    # 프레임을 PIL 이미지로 변환
-    pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    # 감정을 분류
-    result = emotion_classifier(pil_img)
-    return result
+# 전역 변수로 종료 플래그 추가
+exit_flag = False
 
-def generate_caption(frame):
-    # 프레임을 PIL 이미지로 변환
-    pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    # 이미지를 캡션 생성
-    result = captioner(pil_img)
-    return result
-
-def detect_gender(frame):
-    # 프레임을 PIL 이미지로 변환
-    pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    # 성별을 분류
-    result = gender_classifier(pil_img)
-    return result
-
-def main():
-    # 웹캠 초기화
-    cap = cv2.VideoCapture(0)
-
+# Step 3 웹캠 연결 및 캡쳐
+def capture_face_from_webcam(output_path_template="webcam_capture{}.jpg"):
+    global exit_flag
+    cap = cv2.VideoCapture(0)  # 0번 카메라를 엽니다.
     if not cap.isOpened():
         print("웹캠을 열 수 없습니다.")
         return
 
-    while True:
+    capture_index = 1
+
+    while not exit_flag:
         ret, frame = cap.read()
         if not ret:
+            print("캡쳐 실패")
             break
 
-        # 감정 탐지, 이미지 캡션 생성, 성별 구분
-        emotion_result = detect_emotion(frame)
-        caption_result = generate_caption(frame)
-        gender_result = detect_gender(frame)
+        # 얼굴 검출
+        faces = app.get(frame)
 
-        # 감정 결과를 프레임에 표시
-        y_offset = 30
-        for res in emotion_result:
-            label = res['label']
-            score = res['score']
-            text = f'Emotion - {label}: {score:.2f}'
-            cv2.putText(frame, text, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-            y_offset += 30
-            
-            # 감정이 sad, angry, fear, disgust 중 하나일 경우 화면 캡처
-            if label in ['sad', 'angry', 'fear', 'disgust'] and score >= 0.6 :
-                cv2.imwrite('captured_frame.jpg', frame)
-                capture_path = os.path.abspath('captured_frame.jpg')
-                
-                # 성별, 감정, 행동을 한 문장으로 출력
-                gender_label = gender_result[0]['label']
-                caption_text = caption_result[0]['generated_text']
-                print(f" {gender_label}이,  {label}표정으로,  {caption_text}을 했습니다")
+        # 얼굴이 검출되면 사각형으로 표시
+        for face in faces:
+            box = face.bbox.astype(int)
+            cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 2)
 
-        # 이미지 캡션 결과를 프레임에 표시
-        if caption_result:
-            caption = caption_result[0]['generated_text']
-            cv2.putText(frame, f'Caption: {caption}', (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2, cv2.LINE_AA)
-            y_offset += 30
+        # 얼굴이 검출된 프레임을 저장하고 반환
+        if faces:
+            output_path = output_path_template.format(capture_index)
+            cv2.imwrite(output_path, frame)
+            print(f"캡쳐 저장됨: {output_path}")
+            capture_index += 1
 
-        # 성별 결과를 프레임에 표시
-        for res in gender_result:
-            label = res['label']
-            score = res['score']
-            text = f'Gender - {label}: {score:.2f}'
-            cv2.putText(frame, text, (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
-            y_offset += 30
+        # 1초 마다 캡처
+        time.sleep(1)
 
-        # 프레임을 화면에 표시
-        cv2.imshow("Webcam Emotion, Captioning, and Gender Detection", frame)
-
-        # 'q' 키를 누르면 루프 종료
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-      
-    # 자원 해제
     cap.release()
-    cv2.destroyAllWindows()
 
+# 종료 신호를 받기 위한 함수
+def wait_for_exit():
+    global exit_flag
+    input("종료하려면 Enter 키를 누르세요...\n")
+    exit_flag = True
+
+# Step 4 여러 기준 이미지 가져오기
+reference_images = ['jm.png', 'yr.jpg', 'mj.jpg']
+reference_faces = []
+
+for img_path in reference_images:
+    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    faces = app.get(img)
+    if len(faces) == 0:
+        print(f"{img_path}에서 얼굴을 검출하지 못했습니다.")
+        exit()
+    reference_faces.append((img_path, faces[0].normed_embedding))
+
+# 종료 신호를 대기하는 스레드 시작
+exit_thread = threading.Thread(target=wait_for_exit)
+exit_thread.start()
+
+capture_face_from_webcam()
+
+# Step 5 캡처된 이미지 처리
+capture_index = 1
+while True:
+    img_path = f"webcam_capture{capture_index}.jpg"
+    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    if img is None:
+        break
+
+    faces1 = app.get(img)
+    if len(faces1) == 0:
+        print(f"얼굴 검출 실패: {img_path}")
+        capture_index += 1
+        continue
+
+    # Step 6 후처리 출력
+    rimg = app.draw_on(img, faces1) # 이미지 위에 얼굴 검출 결과 그리기
+    output_annotated_path = f"./webcam_capture{capture_index}_annotated.jpg"
+    cv2.imwrite(output_annotated_path, rimg) # 결과 이미지를 파일로 저장
+
+    print(len(faces1))
+    print(faces1[0].embedding)
+
+    # then print all-to-all face similarity
+    feat1 = np.array(faces1[0].normed_embedding, dtype=np.float32) # normed_embedding: 얼굴의 고유한 특징을 나타내는 벡터
+
+    for ref_path, ref_embedding in reference_faces:
+        feat2 = np.array(ref_embedding, dtype=np.float32)
+        sims = np.dot(feat1, feat2.T) # np.dot: 두 벡터의 내적을 계산하여 유사도를 측정
+        print(f"유사도 ({ref_path}): {sims}")
+
+        # 얼굴 유사도 판단 및 출력
+        threshold = 0.5 # 유사도 임계값 설정 (0.5는 예시 값이며 조정 가능)
+
+        if sims > threshold:
+            print(f"{img_path}와 {ref_path}: 동일 인물 입니다.")
+        else:
+            print(f"{img_path}와 {ref_path}: 다른 사람 입니다.")
+
+    # 캡쳐 인덱스 증가
+    capture_index += 1

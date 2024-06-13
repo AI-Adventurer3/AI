@@ -17,6 +17,7 @@ exit_flag = False
 def capture_face_from_webcam(output_path_template="webcam_capture{}.jpg"):
     global exit_flag
     cap = cv2.VideoCapture(0)  # 0번 카메라를 엽니다.
+
     if not cap.isOpened():
         print("웹캠을 열 수 없습니다.")
         return
@@ -44,10 +45,18 @@ def capture_face_from_webcam(output_path_template="webcam_capture{}.jpg"):
             print(f"캡쳐 저장됨: {output_path}")
             capture_index += 1
 
+        # 프레임을 화면에 표시
+        cv2.imshow("Webcam Emotion, Captioning, and Gender Detection", frame)
+
+        # 'q' 키를 누르면 루프 종료
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
         # 1초 마다 캡처
         time.sleep(1)
 
     cap.release()
+    cv2.destroyAllWindows()
 
 # 종료 신호를 받기 위한 함수
 def wait_for_exit():
@@ -56,7 +65,7 @@ def wait_for_exit():
     exit_flag = True
 
 # Step 4 여러 기준 이미지 가져오기
-reference_images = ['img1.png', 'img2.jpg', 'img3.jpg']
+reference_images = ['jm.png', 'yr.jpg', 'mj.jpg']
 reference_faces = []
 
 for img_path in reference_images:

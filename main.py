@@ -65,7 +65,7 @@ async def classify_image(file: UploadFile = File(...)):
         gender_results = gender_detector(image)
         caption_results = image_captioning(image)
 
-        # 이미지를 Base64로 인코딩하여 결과 객체에 추가
+        # 이미지를 Base64로 인코딩하여 결과 객체에 추가가
         image_base64 = base64.b64encode(img_bytes).decode('utf-8')
         results = {
             "captions": [result['generated_text'] for result in caption_results],

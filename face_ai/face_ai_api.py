@@ -1,21 +1,85 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Response
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import StreamingResponse
 import cv2
+import threading
 import numpy as np
 import insightface
 from insightface.app import FaceAnalysis
-import threading
 import time
 
 app = FastAPI()
 
-# Step 2 추론기 만듬
+# CORS 설정 추가
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 모든 출처 허용
+    allow_credentials=True,
+    allow_methods=["*"],  # 모든 HTTP 메소드 허용
+    allow_headers=["*"],  # 모든 HTTP 헤더 허용
+)
+
+# 얼굴 분석기 설정
 face_app = FaceAnalysis(providers=['CPUExecutionProvider'])
-face_app.prepare(ctx_id=0, det_size=(640, 640)) # prepare 얼굴분석기
+face_app.prepare(ctx_id=0, det_size=(640, 640))  # prepare 얼굴분석기
 
-# 전역 변수로 종료 플래그 추가
 exit_flag = False
+stream_flag = False
 
-# Step 3 웹캠 연결 및 캡쳐
+def generate_video_feed():
+    global stream_flag
+    cap = cv2.VideoCapture(0)
+
+    if not cap.isOpened():
+        print("웹캠을 열 수 없습니다.")
+        return
+
+    while stream_flag:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        ret, jpeg = cv2.imencode('.jpg', frame)
+        if not ret:
+            break
+
+        frame = jpeg.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+
+    cap.release()
+
+# 웹캠으로부터 실시간 비디오 피드를 제공
+@app.get("/video_feed")
+async def video_feed():
+    global stream_flag
+    # stream_flag 변수가 True로 설정된 동안 스트림 유지
+    stream_flag = True
+    # generate_video_feed() 함수가 비디오 스트림을 생성
+    return StreamingResponse(generate_video_feed(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+# 실시간 비디오 피드를 중지
+@app.post("/stop_video_feed/")
+async def stop_video_feed():
+    global stream_flag
+    stream_flag = False
+    return {"message": "실시간 비디오 피드 중지"}
+
+# 웹캠에서 얼굴 캡처 시작
+@app.post("/start-capture/")
+async def start_capture(background_tasks: BackgroundTasks):
+    global exit_flag
+    exit_flag = False
+    background_tasks.add_task(capture_face_from_webcam)
+    return {"message": "웹캠 얼굴 캡처 시작"}
+
+# 웹캠 얼굴 캡처 중지
+@app.post("/stop-capture/")
+async def stop_capture():
+    global exit_flag
+    exit_flag = True
+    return {"message": "Capture stopped"}
+
 def capture_face_from_webcam(output_path_template="webcam_capture{}.jpg"):
     global exit_flag
     cap = cv2.VideoCapture(0)  # 0번 카메라를 엽니다.
@@ -60,13 +124,7 @@ def capture_face_from_webcam(output_path_template="webcam_capture{}.jpg"):
     cap.release()
     cv2.destroyAllWindows()
 
-# 종료 신호를 받기 위한 함수
-def wait_for_exit():
-    global exit_flag
-    input("종료하려면 Enter 키를 누르세요...\n")
-    exit_flag = True
-
-# Step 4 여러 기준 이미지 가져오기
+# 참고 이미지 로드
 reference_images = ['jm.png', 'yr.jpg', 'mj.jpg']
 reference_faces = []
 
@@ -83,28 +141,8 @@ for img_path in reference_images:
 
     reference_faces.append((img_path, faces[0].normed_embedding))
 
-# 종료 신호를 대기하는 스레드 시작
-exit_thread = threading.Thread(target=wait_for_exit)
-exit_thread.start()
-
-@app.get("/")
-async def read_root():
-    return {"message": "Hello World"}
-
-@app.post("/start-capture/")
-async def start_capture(background_tasks: BackgroundTasks):
-    global exit_flag
-    exit_flag = False
-    background_tasks.add_task(capture_face_from_webcam)
-    return {"message": "Capture started"}
-
-@app.post("/stop-capture/")
-async def stop_capture():
-    global exit_flag
-    exit_flag = True
-    return {"message": "Capture stopped"}
-
-# Step 5 캡처된 이미지 처리
+# 캡처된 이미지에서 얼굴을 검출
+# 참고 이미지와 비교하여 동일 인물 여부 판단
 @app.post("/process-images/")
 async def process_images():
     capture_index = 1
@@ -121,32 +159,25 @@ async def process_images():
             capture_index += 1
             continue
 
-        # Step 6 후처리 출력
-        rimg = face_app.draw_on(img, faces1) # 이미지 위에 얼굴 검출 결과 그리기
+        # 이미지 위에 얼굴 검출 결과 그리기
+        rimg = face_app.draw_on(img, faces1)
         output_annotated_path = f"./webcam_capture{capture_index}_annotated.jpg"
-        cv2.imwrite(output_annotated_path, rimg) # 결과 이미지를 파일로 저장
+        cv2.imwrite(output_annotated_path, rimg)
 
-        print(len(faces1))
-        print(faces1[0].embedding)
-
-        # then print all-to-all face similarity
-        feat1 = np.array(faces1[0].normed_embedding, dtype=np.float32) # normed_embedding: 얼굴의 고유한 특징을 나타내는 벡터
+        feat1 = np.array(faces1[0].normed_embedding, dtype=np.float32)
 
         for ref_path, ref_embedding in reference_faces:
             feat2 = np.array(ref_embedding, dtype=np.float32)
-            sims = np.dot(feat1, feat2.T) # np.dot: 두 벡터의 내적을 계산하여 유사도를 측정
+            sims = np.dot(feat1, feat2.T)
             print(f"유사도 ({ref_path}): {sims}")
 
-            # 얼굴 유사도 판단 및 출력
-            threshold = 0.5 # 유사도 임계값 설정 (0.5는 예시 값이며 조정 가능)
-
+            threshold = 0.5
             if sims > threshold:
                 result = f"{img_path}와 {ref_path}: 동일 인물 입니다."
             else:
                 result = f"{img_path}와 {ref_path}: 다른 사람 입니다."
             results.append(result)
 
-        # 캡쳐 인덱스 증가
         capture_index += 1
 
     return {"results": results}

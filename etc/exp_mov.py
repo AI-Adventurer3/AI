@@ -10,7 +10,7 @@ import time
 app = FaceAnalysis(providers=['CPUExecutionProvider'])
 app.prepare(ctx_id=0, det_size=(640, 640)) # prepare 얼굴분석기
 
-# 전역 변수로 종료 플래그 추가
+# 전역 변수로 종료 플래그 추가가
 exit_flag = False
 
 # Step 3 웹캠 연결 및 캡쳐

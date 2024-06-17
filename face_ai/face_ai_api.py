@@ -93,7 +93,10 @@ def capture_face_from_webcam(output_path_template="webcam_capture{}.jpg"):
     cv2.destroyAllWindows()
 
 # 참고 이미지 로드
-reference_images = ['jm.png', 'yr.jpg', 'mj.jpg']
+reference_images = ['jm.png', 'yr.jpg', 'mj.jpg',
+                    'im01.PNG', 'im02.PNG', 'im03.PNG','im04.PNG', 'im05.PNG','im06.PNG',
+                    'im07.PNG', 'im08.PNG', 'im09.PNG', 'im10.PNG', 'im11.PNG', 'im12.PNG',
+                    'im13.PNG', 'im14.PNG', 'im15.PNG', 'im16.PNG']
 reference_faces = []
 
 for img_path in reference_images:
